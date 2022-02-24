@@ -22,4 +22,4 @@ struct CalcResult {
 	float averageEvalC;
 };
 
-CalcResult maximise(StoneState s, double (*score)(int, int, int), double (*eval)(int, int, int));
+CalcResult maximise(const StoneState s, float (*score)(int, int, int), float (*eval)(int, int, int));

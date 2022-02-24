@@ -28,7 +28,7 @@ inline constexpr int key(const StoneState stone) {
     return key(stone.SZ, stone.a, stone.aN, stone.b, stone.bN, stone.c, stone.cN, stone.p);
 }
 
-CalcResult maximise(const StoneState stone, const float (*score)(int, int, int), const float (*eval)(int, int, int)) {
+CalcResult maximise(const StoneState stone, float (*score)(int, int, int), float (*eval)(int, int, int)) {
     int num_states = S(stone.SZ + 1) * S(stone.SZ + 1) * S(stone.SZ + 1) * 6;
     vector<float> X(num_states, -FLT_MAX);
     vector<float> Y(num_states, -FLT_MAX);
