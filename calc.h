@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 struct StoneState {
 	int SZ;	// Size of stone
 	int a;		// A successes so far
@@ -14,12 +16,14 @@ struct StoneState {
 struct CalcResult {
 	// Expected value of score function from choosing option A
 	float averageScoreA;
-	// Expected value of eval function from choosing option A
-	float averageEvalA;
 	float averageScoreB;
-	float averageEvalB;
 	float averageScoreC;
-	float averageEvalC;
+	// Expected value of eval function from choosing option A
+	std::vector<float> averageEvalA;
+	std::vector<float> averageEvalB;
+	std::vector<float> averageEvalC;
 };
 
-CalcResult maximise(const StoneState s, float (*score)(int, int, int), float (*eval)(int, int, int));
+typedef float (*ScoreFn)(int, int, int);
+
+CalcResult maximise(const StoneState s, ScoreFn score, std::vector<ScoreFn> eval);

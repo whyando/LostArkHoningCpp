@@ -28,10 +28,12 @@ inline constexpr int key(const StoneState stone) {
     return key(stone.SZ, stone.a, stone.aN, stone.b, stone.bN, stone.c, stone.cN, stone.p);
 }
 
-CalcResult maximise(const StoneState stone, float (*score)(int, int, int), float (*eval)(int, int, int)) {
+
+CalcResult maximise(const StoneState stone, ScoreFn score, vector<ScoreFn> eval) {
     int num_states = S(stone.SZ + 1) * S(stone.SZ + 1) * S(stone.SZ + 1) * 6;
+    int num_eval_fns = eval.size();
     vector<float> X(num_states, -FLT_MAX);
-    vector<float> Y(num_states, -FLT_MAX);
+    vector<vector<float>> Y(num_eval_fns, vector<float>(num_states, -FLT_MAX));
 
     // Assign a score to all terminal states (states with aN == bN == cN == stone.sZ )
     int count = 0;
@@ -40,13 +42,21 @@ CalcResult maximise(const StoneState stone, float (*score)(int, int, int), float
             for (int c = 0; c <= stone.SZ; c++) {
                 for (int p = 25; p <= 75; p += 10) {
                     X[key(stone.SZ, a, stone.SZ, b, stone.SZ, c, stone.SZ, p)] = score(a, b, c);
-                    Y[key(stone.SZ, a, stone.SZ, b, stone.SZ, c, stone.SZ, p)] = eval(a, b, c);
+                    for(int k=0;k< num_eval_fns;k++)
+                        Y[k][key(stone.SZ, a, stone.SZ, b, stone.SZ, c, stone.SZ, p)] = eval[k](a, b, c);
                 }
             }
         }
     }
 
     const int target_k = key(stone);
+
+    // prep ret object
+    CalcResult ret;
+    ret.averageEvalA = vector<float>(num_eval_fns);
+    ret.averageEvalB = vector<float>(num_eval_fns);
+    ret.averageEvalC = vector<float>(num_eval_fns);
+
 
     // Iterate the rest of the states
     for (int S = stone.SZ * 3 - 1; S >= 0; S--) {
@@ -59,6 +69,7 @@ CalcResult maximise(const StoneState stone, float (*score)(int, int, int), float
                     for (int b = 0; b <= bN; b++) {
                         for (int c = 0; c <= cN; c++) {
                             for (int p = 25; p <= 75; p += 10) {
+
                                 const int k = key(stone.SZ, a, aN, b, bN, c, cN, p);
                                 float expA = aN == stone.SZ ? -FLT_MAX
                                     : p / 100.0 * X[key(stone.SZ, a + 1, aN + 1, b, bN, c, cN, max(25, p - 10))] + (100 - p) / 100.0 * X[key(stone.SZ, a, aN + 1, b, bN, c, cN, min(75, p + 10))];
@@ -66,31 +77,33 @@ CalcResult maximise(const StoneState stone, float (*score)(int, int, int), float
                                     : p / 100.0 * X[key(stone.SZ, a, aN, b + 1, bN + 1, c, cN, max(25, p - 10))] + (100 - p) / 100.0 * X[key(stone.SZ, a, aN, b, bN + 1, c, cN, min(75, p + 10))];
                                 float expC = cN == stone.SZ ? -FLT_MAX
                                     : p / 100.0 * X[key(stone.SZ, a, aN, b, bN, c + 1, cN + 1, max(25, p - 10))] + (100 - p) / 100.0 * X[key(stone.SZ, a, aN, b, bN, c, cN + 1, min(75, p + 10))];
-                                
-                                float expEvalA = aN == stone.SZ ? -FLT_MAX
-                                    : p / 100.0 * Y[key(stone.SZ, a + 1, aN + 1, b, bN, c, cN, max(25, p - 10))] + (100 - p) / 100.0 * Y[key(stone.SZ, a, aN + 1, b, bN, c, cN, min(75, p + 10))];
-                                float expEvalB = bN == stone.SZ ? -FLT_MAX
-                                    : p / 100.0 * Y[key(stone.SZ, a, aN, b + 1, bN + 1, c, cN, max(25, p - 10))] + (100 - p) / 100.0 * Y[key(stone.SZ, a, aN, b, bN + 1, c, cN, min(75, p + 10))];
-                                float expEvalC = cN == stone.SZ ? -FLT_MAX
-                                    : p / 100.0 * Y[key(stone.SZ, a, aN, b, bN, c + 1, cN + 1, max(25, p - 10))] + (100 - p) / 100.0 * Y[key(stone.SZ, a, aN, b, bN, c, cN + 1, min(75, p + 10))];
- 
                                 float maxScore = max(expA, max(expB, expC));
-
                                 X[k] = maxScore;
-                                Y[k] = ((expA == maxScore) ? expEvalA : 0)
-                                    + ((expB == maxScore) ? expEvalB : 0)
-                                    + ((expC == maxScore) ? expEvalC : 0);
-                                Y[k] /= (expA == maxScore) + (expB == maxScore) + (expC == maxScore);
+
+                                for (int eval_fn = 0; eval_fn < num_eval_fns; eval_fn++) {
+                                    float expEvalA = aN == stone.SZ ? -FLT_MAX
+                                        : p / 100.0 * Y[eval_fn][key(stone.SZ, a + 1, aN + 1, b, bN, c, cN, max(25, p - 10))] + (100 - p) / 100.0 * Y[eval_fn][key(stone.SZ, a, aN + 1, b, bN, c, cN, min(75, p + 10))];
+                                    float expEvalB = bN == stone.SZ ? -FLT_MAX
+                                        : p / 100.0 * Y[eval_fn][key(stone.SZ, a, aN, b + 1, bN + 1, c, cN, max(25, p - 10))] + (100 - p) / 100.0 * Y[eval_fn][key(stone.SZ, a, aN, b, bN + 1, c, cN, min(75, p + 10))];
+                                    float expEvalC = cN == stone.SZ ? -FLT_MAX
+                                        : p / 100.0 * Y[eval_fn][key(stone.SZ, a, aN, b, bN, c + 1, cN + 1, max(25, p - 10))] + (100 - p) / 100.0 * Y[eval_fn][key(stone.SZ, a, aN, b, bN, c, cN + 1, min(75, p + 10))];
+                                    Y[eval_fn][k] = ((expA == maxScore) ? expEvalA : 0)
+                                        + ((expB == maxScore) ? expEvalB : 0)
+                                        + ((expC == maxScore) ? expEvalC : 0);
+                                    Y[eval_fn][k] /= (expA == maxScore) + (expB == maxScore) + (expC == maxScore);
+
+                                    if (k == target_k) {
+                                        ret.averageEvalA[eval_fn] = expEvalA;
+                                        ret.averageEvalB[eval_fn] = expEvalB;
+                                        ret.averageEvalC[eval_fn] = expEvalC;
+                                    }
+                                }
 
                                 count++;
                                 if (k == target_k) {
-                                    CalcResult ret;
                                     ret.averageScoreA = expA;
                                     ret.averageScoreB = expB;
                                     ret.averageScoreC = expC;
-                                    ret.averageEvalA = expEvalA;
-                                    ret.averageEvalB = expEvalB;
-                                    ret.averageEvalC = expEvalC;
                                     return ret;
                                 }
                             }
